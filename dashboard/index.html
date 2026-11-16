@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Token Radar — pre-token airdrop farming board</title>
+<meta name="description" content="A ranked board of pre-token protocols, scored by a transparent model over one sealed snapshot, each with a concrete farm plan.">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="wrap">
+    <h1>Token Radar</h1>
+    <p class="tagline">Pre-token protocols ranked by modelled airdrop value — with exactly how to farm each one.</p>
+    <p class="snapshot-line" id="snapshot-line">Loading snapshot…</p>
+    <div class="stat-grid" id="stat-grid"></div>
+  </div>
+</header>
+
+<nav class="section-nav">
+  <div class="wrap">
+    <a href="#board">The board</a>
+    <a href="#watchlist">Watchlist</a>
+    <a href="#methodology">Methodology</a>
+  </div>
+</nav>
+
+<main class="wrap">
+
+  <section id="board">
+    <h2>The board</h2>
+    <p class="section-intro">
+      Every protocol in the snapshot that has not launched a token yet — no market cap, no
+      CoinGecko id, no symbol recorded — outside the exchange category and with TVL above
+      zero, plus every protocol on the snapshot's own watchlist. Ranked by the model's
+      estimate of the airdrop pool a launch would carry. Open any row for its farm plan:
+      six concrete steps generated from the protocol's category, chains, TVL tier and age.
+    </p>
+    <div class="controls">
+      <label class="control-grow">Search
+        <input id="q" type="search" placeholder="Protocol name or slug…" autocomplete="off">
+      </label>
+      <label>Category
+        <select id="cat"><option value="">All categories</option></select>
+      </label>
+      <label class="check"><input id="watch-only" type="checkbox"> Watchlist only</label>
+      <span class="result-count" id="result-count"></span>
+    </div>
+    <div class="table-scroll">
+      <table id="board-table">
+        <thead>
+          <tr>
+            <th data-key="rank" class="num sortable">#</th>
+            <th data-key="name" class="sortable">Protocol</th>
+            <th>Category</th>
+            <th>Chains</th>
+            <th data-key="tvl_usd" class="num sortable">TVL</th>
+            <th data-key="change_7d" class="num sortable">7d TVL</th>
+            <th data-key="score" class="num sortable">Score</th>
+            <th data-key="implied_value_usd" class="num sortable">Implied airdrop pool</th>
+            <th><span class="visually-hidden">Farm plan</span></th>
+          </tr>
+        </thead>
+        <tbody id="board-body"></tbody>
+      </table>
+    </div>
+    <p class="table-note">Click a column header to sort. The rank is the board's own order —
+    by implied airdrop pool — and does not change with sorting.</p>
+  </section>
+
+  <section id="watchlist">
+    <h2>Watchlist</h2>
+    <p class="section-intro">
+      The forty protocols the snapshot itself flags for watching. The model treats the flag
+      as a mild prior, not a verdict: watchlist rows get a 1.2&times; boost to their implied
+      pool and 1.1&times; to their display score, and they are always on the board — even
+      when a token already exists — because the gate's coverage rule asks for them and
+      because a watched protocol that already trades can still run points or a second
+      distribution. Each card carries the same generated farm plan as the board.
+    </p>
+    <div class="card-grid" id="watch-grid"></div>
+  </section>
+
+  <section id="methodology">
+    <h2>Methodology — how every number on this page is made</h2>
+
+    <p>
+      Token Radar is one program (<code>main.ts</code>, Node, standard library only) reading
+      one sealed snapshot of the protocol universe and writing this board. Nothing is
+      hand-picked and nothing is fetched at run time: given a future snapshot, the same
+      program produces the radar for protocols that do not exist yet. Every figure below
+      comes from the snapshot's own fields — slug, name, category, chains, TVL, 7-day TVL
+      change, market cap, listing date — plus the snapshot's watchlist and TVL floor.
+    </p>
+
+    <h3>Who gets ranked</h3>
+    <p>
+      A protocol is <strong>pre-token</strong> when the snapshot records no token for it:
+      no market cap, no CoinGecko id, no symbol. Pre-token protocols are where an airdrop
+      can still exist; a protocol that already trades has mostly spent that upside. The
+      board carries every pre-token protocol outside the CEX category with TVL above
+      zero, and — by the coverage rule — every watchlist protocol the snapshot contains.
+    </p>
+
+    <h3>The implied airdrop pool</h3>
+    <p>The headline number is the model's estimate of the pool a launch would distribute:</p>
+    <p class="formula">
+      pool = TVL &times; FDV multiple(category) &times; 8%<br>
+      implied pool = pool &times; pre-token factor &times; momentum &times; maturity
+      &times; category prior &times; watchlist boost, clamped to [$1, $1T]
+    </p>
+    <ul class="factor-list">
+      <li><strong>FDV multiple</strong> — what a launch might price the protocol at, as a
+        multiple of its TVL: <strong>1.2</strong> for venues and launchpads (DEXs,
+        derivatives, options, launchpads, AI), <strong>0.9</strong> for the middle of the
+        table, <strong>0.5</strong> for chains, exchanges and payment rails whose TVL is
+        mostly pass-through.</li>
+      <li><strong>Airdrop share — 8%, an assumption.</strong> Community distributions
+        commonly land in the 5–10% band of launch valuation; the model takes 8% and says
+        so, rather than hiding the guess inside the arithmetic.</li>
+      <li><strong>Pre-token factor</strong> — 1.0 when no token is recorded; 0.7 when a
+        symbol or CoinGecko id exists but no market cap yet; once a market cap exists it
+        fades with the mcap/TVL ratio: 0.55 at &le;0.5, 0.40 at &le;1, 0.22 at &le;3, 0.10
+        above. The more the market already prices the token, the less a farming position
+        can still capture.</li>
+      <li><strong>Momentum</strong> — 1 + clamp(7-day TVL change, &minus;60%, +120%)
+        &times; 0.5. TVL rushing in is the crowd arriving early; a shrinking protocol is
+        discounted, never excluded.</li>
+      <li><strong>Maturity</strong> — 0.55 + min(age, 900 days)/900 &times; 0.45, where
+        age runs from the snapshot's listing date; an unknown age counts as 300 days. A
+        protocol that has survived longer is more likely to reach a launch at all.</li>
+      <li><strong>Category prior</strong> — a multiplier between 0.5 and 1.15 reflecting
+        how airdrop-friendly each category's launches have historically been: launchpads
+        1.15, farms 1.10, restaking 1.08, DEXs / lending / yield 1.05, bridges / CDP /
+        derivatives / liquid staking 1.00, indexes / privacy / RWA 0.90, payments 0.85,
+        chains 0.70, exchanges 0.50, anything unlisted 0.90.</li>
+      <li><strong>Watchlist boost</strong> — 1.2&times; for protocols on the snapshot's
+        own watchlist: the curators' flag is evidence, weighted as a mild prior.</li>
+    </ul>
+
+    <h3 id="worked-example">Worked example — the board's top row, in full</h3>
+    <p>
+      Binance staked ETH (Liquid Staking, on Ethereum and Binance; listed 2023-04-29, so
+      1,295 days old at the snapshot) carries the largest farmable TVL in the snapshot.
+      Here is its number, factor by factor:
+    </p>
+    <ul class="factor-list">
+      <li>TVL <strong>$7,448,338,841</strong> &times; FDV multiple <strong>0.9</strong>
+        (the middle band) &rarr; launch valuation &asymp; $6,703,504,957</li>
+      <li>&times; airdrop share <strong>8%</strong> &rarr; pool &asymp; $536,280,397</li>
+      <li>&times; pre-token factor <strong>1.00</strong> — the snapshot records no token
+        for it: no market cap, no CoinGecko id, no symbol</li>
+      <li>&times; momentum <strong>0.9284</strong> — its 7-day TVL change is &minus;14.31%,
+        and 1 + (&minus;14.31% &times; 0.5) = 0.9284</li>
+      <li>&times; maturity <strong>1.00</strong> — at 1,295 days it is past the 900-day cap</li>
+      <li>&times; category prior <strong>1.00</strong> (Liquid Staking), and no watchlist
+        boost — it is not on the snapshot's watchlist</li>
+    </ul>
+    <p class="formula">
+      implied pool = $536,280,397 &times; 1.00 &times; 0.9284 &times; 1.00 &times; 1.00
+      &asymp; <strong>$497,900,686</strong>
+    </p>
+    <p>
+      Factors are shown rounded to four decimals; the program multiplies at full
+      precision, so $497,900,686 is the exact figure the board carries for this row.
+    </p>
+
+    <h3>The display score (0–100)</h3>
+    <p>
+      A blend of the same signals, for scanning: 30% pre-token factor, 25% log-scaled TVL
+      size (0 at $100K, 1 near $2B), 20% momentum, 15% category prior, 10% chain footprint
+      (breadth, plus a small bonus for an Ethereum mainnet presence), &times;1.1 on the
+      watchlist. Rows are ranked by implied pool; the score breaks no tie the value
+      does not.
+    </p>
+
+    <h3>The farm plans</h3>
+    <p>
+      Each row's six steps are generated, not written: one core action chosen by category
+      (supply collateral for lending, restake for restaking, add liquidity for DEXs, bridge
+      and stay for bridges, margin-trade small and weekly for derivatives, and so on),
+      sized by TVL tier — $250 of starter capital over $1B of TVL, $150 over $100M, $75
+      over $10M, $40 below — held for a period set by the protocol's age (45 days under
+      six months old, 35 under a year, 28 beyond; 35 when the age is unknown) while
+      checking the protocol's own points or rewards surface, and repeated weekly. The
+      weekly and claim steps each use one of four phrasings, picked deterministically
+      from the protocol's slug, so the plans do not read as one text repeated down the
+      board; the substance never changes — farm from one clean wallet with its seed
+      phrase offline, and claim only from the link the protocol's own site publishes,
+      never a search ad or a DM.
+    </p>
+
+    <h3>Limitations, stated plainly</h3>
+    <ul>
+      <li>An implied pool is a <strong>model estimate of a future event that may never
+        happen</strong>. Many protocols on this board will never launch a token; some
+        will launch and distribute nothing to farmers.</li>
+      <li>The pool is not a personal payout. One wallet's share depends on how many
+        wallets farm, on time- and balance-weighting, and on eligibility rules the
+        protocol has not published yet — and may never publish.</li>
+      <li>TVL is an imperfect signal: it can be mercenary, double-counted across
+        restaking chains, or gone next week. The snapshot is one moment; this board is
+        exactly as stale as its date line says.</li>
+      <li>The category priors and the 8% share are judgement calls, documented above so
+        they can be disagreed with. Different assumptions produce a different board;
+        the code makes them one-line changes.</li>
+    </ul>
+    <p class="disclaimer">
+      Nothing on this page is financial advice, and no number here is a promise of a
+      token, an airdrop, or a return. Farm only with money you can afford to lock up and
+      lose, and treat every unsolicited claim link as a scam until the protocol's own
+      site proves otherwise.
+    </p>
+  </section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <p>Token Radar — generated by <code>main.ts</code> from a single sealed snapshot.
+    This page and its data are fully local: no trackers, no requests, no network.</p>
+  </div>
+</footer>
+
+<script src="data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
